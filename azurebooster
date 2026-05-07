@@ -1,0 +1,536 @@
+-- // [1] SERVICES //
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- // [2] CONFIG //
+local CONFIG = {
+    Colors = {
+        Background    = Color3.fromRGB(14, 8, 26),
+        Panel         = Color3.fromRGB(22, 13, 40),
+        TopBar        = Color3.fromRGB(30, 18, 55),
+        Card          = Color3.fromRGB(32, 20, 58),
+        CardHover     = Color3.fromRGB(45, 28, 75),
+        AccentPrimary = Color3.fromRGB(140, 60, 255),
+        AccentSoft    = Color3.fromRGB(80, 40, 130),
+        TextWhite     = Color3.fromRGB(255, 255, 255),
+        TextSoft      = Color3.fromRGB(190, 165, 230),
+        TextMuted     = Color3.fromRGB(120, 100, 160),
+        Green         = Color3.fromRGB(80, 220, 130),
+        SaveBtn       = Color3.fromRGB(50, 25, 90),
+        Divider       = Color3.fromRGB(60, 35, 100),
+    },
+    Buttons = {
+        { label = "STRETCH REZ", icon = "💤" },
+        { label = "NIGHT TIME",  icon = "🌙" },
+        { label = "PURPLE SKY",  icon = "⭐" },
+        { label = "FPS BOOSTER", icon = "⚡" },
+        { label = "ANTI-LAG",    icon = "🚫" },
+        { label = "SAVE CONFIG", icon = "✅" },
+    },
+    FPSInterval = 0.5
+}
+
+-- // [3] STATE //
+local BtnData   = {}
+local BtnStates = {}
+local WatermarkLabel
+local LastFPS = 0
+
+-- // [4] HELPERS //
+local function New(class, props, children)
+    local inst = Instance.new(class)
+    for k, v in pairs(props or {}) do
+        inst[k] = v
+    end
+    for _, child in ipairs(children or {}) do
+        child.Parent = inst
+    end
+    return inst
+end
+
+local function Corner(r)
+    return New("UICorner", {CornerRadius = UDim.new(0, r)})
+end
+
+local function Stroke(col, thick)
+    return New("UIStroke", {
+        Color = col,
+        Thickness = thick,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    })
+end
+
+local function Tween(obj, props, t)
+    TweenService:Create(obj, TweenInfo.new(t or 0.18, Enum.EasingStyle.Quad), props):Play()
+end
+
+local function makeDraggable(frame)
+    local drag, dragInput, dragStart, startPos
+    frame.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            drag = true
+            dragStart = inp.Position
+            startPos = frame.Position
+            inp.Changed:Connect(function()
+                if inp.UserInputState == Enum.UserInputState.End then
+                    drag = false
+                end
+            end)
+        end
+    end)
+    frame.InputChanged:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = inp
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(inp)
+        if inp == dragInput and drag then
+            local d = inp.Position - dragStart
+            frame.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + d.X,
+                startPos.Y.Scale, startPos.Y.Offset + d.Y
+            )
+        end
+    end)
+end
+
+-- // [5] WATERMARK //
+local function buildWatermark()
+    local gui = New("ScreenGui", {Name="AzureWatermark", ResetOnSpawn=false, Parent=CoreGui})
+    local frame = New("Frame", {
+        Size = UDim2.new(0, 300, 0, 28),
+        Position = UDim2.new(1, -310, 1, -40),
+        BackgroundColor3 = CONFIG.Colors.Panel,
+        Parent = gui
+    }, {Corner(8), Stroke(CONFIG.Colors.AccentPrimary, 1)})
+
+    New("UIPadding", {
+        PaddingLeft = UDim.new(0, 10),
+        PaddingRight = UDim.new(0, 10),
+        Parent = frame
+    })
+
+    WatermarkLabel = New("TextLabel", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "✦ AZURE  |  " .. LocalPlayer.Name .. "  |  FPS: 60",
+        TextColor3 = CONFIG.Colors.AccentPrimary,
+        Font = Enum.Font.Code,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = frame
+    })
+end
+
+-- // [6] MAIN GUI //
+local function buildGUI()
+    local ScreenGui = New("ScreenGui", {
+        Name = "AzureBoosterGui",
+        ResetOnSpawn = false,
+        Parent = CoreGui
+    })
+
+    -- Shadow
+    New("Frame", {
+        Size = UDim2.new(0, 260, 0, 545),
+        Position = UDim2.new(0.78, 4, 0.5, -266),
+        BackgroundColor3 = Color3.fromRGB(80, 20, 160),
+        BackgroundTransparency = 0.82,
+        ZIndex = 0,
+        Parent = ScreenGui
+    }, {Corner(20)})
+
+    -- Main
+    local Main = New("Frame", {
+        Name = "Main",
+        Size = UDim2.new(0, 252, 0, 535),
+        Position = UDim2.new(0.78, 0, 0.5, -267),
+        BackgroundColor3 = CONFIG.Colors.Background,
+        Active = true,
+        ZIndex = 1,
+        Parent = ScreenGui
+    }, {Corner(18), Stroke(CONFIG.Colors.AccentPrimary, 1.5)})
+
+    -- Top gradient bar
+    local GradBar = New("Frame", {
+        Size = UDim2.new(1, 0, 0, 3),
+        BackgroundColor3 = CONFIG.Colors.AccentPrimary,
+        BorderSizePixel = 0,
+        ZIndex = 2,
+        Parent = Main
+    }, {Corner(18)})
+    New("UIGradient", {
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 80, 255)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(100, 40, 220)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(60, 20, 140))
+        }),
+        Rotation = 90,
+        Parent = GradBar
+    })
+
+    -- TopBar (profile)
+    local TopBar = New("Frame", {
+        Size = UDim2.new(1, -20, 0, 68),
+        Position = UDim2.new(0, 10, 0, 14),
+        BackgroundColor3 = CONFIG.Colors.TopBar,
+        ZIndex = 2,
+        Parent = Main
+    }, {Corner(14), Stroke(CONFIG.Colors.AccentSoft, 1)})
+
+    -- Avatar
+    New("ImageLabel", {
+        Size = UDim2.new(0, 48, 0, 48),
+        Position = UDim2.new(0, 10, 0.5, -24),
+        BackgroundColor3 = CONFIG.Colors.AccentSoft,
+        Image = "rbxthumb://type=AvatarHeadShot&id=" .. LocalPlayer.UserId .. "&w=150&h=150",
+        ZIndex = 3,
+        Parent = TopBar
+    }, {Corner(999), Stroke(CONFIG.Colors.AccentPrimary, 2)})
+
+    -- Online dot
+    New("Frame", {
+        Size = UDim2.new(0, 11, 0, 11),
+        Position = UDim2.new(0, 45, 0, 45),
+        BackgroundColor3 = CONFIG.Colors.Green,
+        ZIndex = 4,
+        Parent = TopBar
+    }, {Corner(999), Stroke(CONFIG.Colors.TopBar, 2)})
+
+    -- Display name
+    New("TextLabel", {
+        Size = UDim2.new(1, -72, 0, 22),
+        Position = UDim2.new(0, 66, 0, 12),
+        BackgroundTransparency = 1,
+        Text = LocalPlayer.DisplayName,
+        TextColor3 = CONFIG.Colors.TextWhite,
+        Font = Enum.Font.GothamBold,
+        TextSize = 15,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 3,
+        Parent = TopBar
+    })
+
+    -- @username
+    New("TextLabel", {
+        Size = UDim2.new(1, -72, 0, 18),
+        Position = UDim2.new(0, 66, 0, 36),
+        BackgroundTransparency = 1,
+        Text = "@" .. LocalPlayer.Name,
+        TextColor3 = CONFIG.Colors.TextMuted,
+        Font = Enum.Font.Gotham,
+        TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 3,
+        Parent = TopBar
+    })
+
+    -- Title row
+    local TitleRow = New("Frame", {
+        Size = UDim2.new(1, -20, 0, 36),
+        Position = UDim2.new(0, 10, 0, 92),
+        BackgroundTransparency = 1,
+        ZIndex = 2,
+        Parent = Main
+    })
+    New("TextLabel", {
+        Size = UDim2.new(0.6, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "AZURE BOOSTER",
+        TextColor3 = CONFIG.Colors.TextWhite,
+        Font = Enum.Font.GothamBold,
+        TextSize = 17,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 3,
+        Parent = TitleRow
+    })
+    New("TextLabel", {
+        Size = UDim2.new(0.4, 0, 1, 0),
+        Position = UDim2.new(0.6, 0, 0, 0),
+        BackgroundTransparency = 1,
+        Text = "discord.gg/azurehub",
+        TextColor3 = CONFIG.Colors.TextMuted,
+        Font = Enum.Font.Gotham,
+        TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Right,
+        ZIndex = 3,
+        Parent = TitleRow
+    })
+
+    -- Divider
+    New("Frame", {
+        Size = UDim2.new(1, -20, 0, 1),
+        Position = UDim2.new(0, 10, 0, 132),
+        BackgroundColor3 = CONFIG.Colors.Divider,
+        BorderSizePixel = 0,
+        ZIndex = 2,
+        Parent = Main
+    })
+
+    -- "FEATURES" label  (fara LetterSpacing!)
+    New("TextLabel", {
+        Size = UDim2.new(1, -20, 0, 18),
+        Position = UDim2.new(0, 14, 0, 140),
+        BackgroundTransparency = 1,
+        Text = "F E A T U R E S",
+        TextColor3 = CONFIG.Colors.TextMuted,
+        Font = Enum.Font.GothamBold,
+        TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 2,
+        Parent = Main
+    })
+
+    -- Button container
+    local BtnContainer = New("Frame", {
+        Size = UDim2.new(1, -20, 1, -168),
+        Position = UDim2.new(0, 10, 0, 162),
+        BackgroundTransparency = 1,
+        ZIndex = 2,
+        Parent = Main
+    })
+    New("UIListLayout", {
+        FillDirection = Enum.FillDirection.Vertical,
+        Padding = UDim.new(0, 6),
+        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Parent = BtnContainer
+    })
+
+    -- Build buttons
+    for i, bInfo in ipairs(CONFIG.Buttons) do
+        local isSave = (i == 6)
+
+        local card = New("Frame", {
+            Size = UDim2.new(1, 0, 0, 42),
+            BackgroundColor3 = isSave and CONFIG.Colors.SaveBtn or CONFIG.Colors.Card,
+            ZIndex = 3,
+            LayoutOrder = i,
+            Parent = BtnContainer
+        }, {Corner(11)})
+
+        local accent = New("Frame", {
+            Size = UDim2.new(0, 3, 0.6, 0),
+            Position = UDim2.new(0, 0, 0.2, 0),
+            BackgroundColor3 = isSave and CONFIG.Colors.AccentPrimary or CONFIG.Colors.AccentSoft,
+            BorderSizePixel = 0,
+            ZIndex = 4,
+            Parent = card
+        }, {Corner(4)})
+
+        New("TextLabel", {
+            Size = UDim2.new(0, 32, 1, 0),
+            Position = UDim2.new(0, 10, 0, 0),
+            BackgroundTransparency = 1,
+            Text = bInfo.icon,
+            TextColor3 = isSave and CONFIG.Colors.AccentPrimary or CONFIG.Colors.TextSoft,
+            Font = Enum.Font.GothamBold,
+            TextSize = 16,
+            ZIndex = 4,
+            Parent = card
+        })
+
+        local lbl = New("TextLabel", {
+            Size = UDim2.new(1, -80, 1, 0),
+            Position = UDim2.new(0, 46, 0, 0),
+            BackgroundTransparency = 1,
+            Text = bInfo.label,
+            TextColor3 = CONFIG.Colors.TextSoft,
+            Font = Enum.Font.GothamBold,
+            TextSize = 13,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            ZIndex = 4,
+            Parent = card
+        })
+
+        local pill, pillDot
+        if not isSave then
+            pill = New("Frame", {
+                Size = UDim2.new(0, 32, 0, 18),
+                Position = UDim2.new(1, -42, 0.5, -9),
+                BackgroundColor3 = CONFIG.Colors.AccentSoft,
+                ZIndex = 4,
+                Parent = card
+            }, {Corner(999)})
+            pillDot = New("Frame", {
+                Size = UDim2.new(0, 12, 0, 12),
+                Position = UDim2.new(0, 3, 0.5, -6),
+                BackgroundColor3 = CONFIG.Colors.TextWhite,
+                ZIndex = 5,
+                Parent = pill
+            }, {Corner(999)})
+        else
+            New("TextLabel", {
+                Size = UDim2.new(0, 32, 1, 0),
+                Position = UDim2.new(1, -40, 0, 0),
+                BackgroundTransparency = 1,
+                Text = "↓",
+                TextColor3 = CONFIG.Colors.AccentPrimary,
+                Font = Enum.Font.GothamBold,
+                TextSize = 18,
+                ZIndex = 4,
+                Parent = card
+            })
+        end
+
+        local btn = New("TextButton", {
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Text = "",
+            ZIndex = 6,
+            Parent = card
+        })
+
+        btn.MouseEnter:Connect(function()
+            Tween(card, {BackgroundColor3 = isSave and Color3.fromRGB(65, 32, 110) or CONFIG.Colors.CardHover})
+        end)
+        btn.MouseLeave:Connect(function()
+            Tween(card, {BackgroundColor3 = isSave and CONFIG.Colors.SaveBtn or CONFIG.Colors.Card})
+        end)
+
+        BtnData[i] = {
+            btn     = btn,
+            lbl     = lbl,
+            pill    = pill,
+            pillDot = pillDot,
+            accent  = accent,
+            card    = card
+        }
+        BtnStates[i] = false
+    end
+
+    makeDraggable(Main)
+end
+
+-- // [7] BUTTON LOGIC //
+local function setupButtons()
+    for i = 1, #BtnData do
+        local d = BtnData[i]
+        if not d then continue end
+
+        d.btn.MouseButton1Click:Connect(function()
+
+            -- SAVE CONFIG
+            if i == 6 then
+                d.lbl.Text = "SAVED!"
+                d.lbl.TextColor3 = CONFIG.Colors.Green
+                Tween(d.card, {BackgroundColor3 = Color3.fromRGB(20, 60, 35)})
+                task.wait(1.5)
+                d.lbl.Text = CONFIG.Buttons[6].label
+                d.lbl.TextColor3 = CONFIG.Colors.TextSoft
+                Tween(d.card, {BackgroundColor3 = CONFIG.Colors.SaveBtn})
+                return
+            end
+
+            BtnStates[i] = not BtnStates[i]
+            local on = BtnStates[i]
+
+            -- Pill animate
+            if d.pill and d.pillDot then
+                Tween(d.pill, {BackgroundColor3 = on and CONFIG.Colors.AccentPrimary or CONFIG.Colors.AccentSoft})
+                Tween(d.pillDot, {Position = on and UDim2.new(1, -15, 0.5, -6) or UDim2.new(0, 3, 0.5, -6)})
+            end
+            d.lbl.TextColor3 = on and CONFIG.Colors.AccentPrimary or CONFIG.Colors.TextSoft
+            Tween(d.accent, {BackgroundColor3 = on and CONFIG.Colors.AccentPrimary or CONFIG.Colors.AccentSoft})
+
+            if i == 1 then -- STRETCH REZ
+                local cam = Workspace.CurrentCamera
+                if cam then cam.FieldOfView = on and 120 or 70 end
+
+            elseif i == 2 then -- NIGHT TIME
+                if on then
+                    Lighting.ClockTime = 0
+                    Lighting.Brightness = 0.2
+                    Lighting.Ambient = Color3.fromRGB(20, 20, 35)
+                else
+                    Lighting.ClockTime = 14
+                    Lighting.Brightness = 2
+                    Lighting.Ambient = Color3.fromRGB(128, 128, 128)
+                end
+
+            elseif i == 3 then -- PURPLE SKY
+                if on then
+                    Lighting.Ambient = Color3.fromRGB(60, 30, 90)
+                    Lighting.FogColor = Color3.fromRGB(80, 40, 120)
+                    local sky = Lighting:FindFirstChildOfClass("Sky") or Instance.new("Sky")
+                    sky.SkyboxBk = "rbxassetid://1534951537"
+                    sky.SkyboxDn = "rbxassetid://1534951537"
+                    sky.SkyboxFt = "rbxassetid://1534951537"
+                    sky.SkyboxLf = "rbxassetid://1534951537"
+                    sky.SkyboxRt = "rbxassetid://1534951537"
+                    sky.SkyboxUp = "rbxassetid://1534951537"
+                    sky.StarCount = 8000
+                    sky.Parent = Lighting
+                    local cc = Lighting:FindFirstChildOfClass("ColorCorrectionEffect") or Instance.new("ColorCorrectionEffect")
+                    cc.TintColor = Color3.fromRGB(180, 140, 255)
+                    cc.Saturation = 0.6
+                    cc.Contrast = 0.15
+                    cc.Parent = Lighting
+                else
+                    Lighting.Ambient = Color3.fromRGB(128, 128, 128)
+                    Lighting.FogColor = Color3.fromRGB(191, 191, 191)
+                end
+
+            elseif i == 4 then -- FPS BOOSTER
+                if on then
+                    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+                    Lighting.GlobalShadows = false
+                    Lighting.Brightness = 3
+                    Lighting.FogEnd = 9000000000
+                    Lighting.Technology = Enum.Technology.Legacy
+                    Lighting.EnvironmentDiffuseScale = 0
+                    Lighting.EnvironmentSpecularScale = 0
+                else
+                    settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
+                    Lighting.GlobalShadows = true
+                    Lighting.Brightness = 2
+                    Lighting.FogEnd = 100000
+                    Lighting.Technology = Enum.Technology.ShadowMap
+                end
+
+            elseif i == 5 then -- ANTI-LAG
+                if on then
+                    for _, obj in ipairs(Workspace:GetDescendants()) do
+                        if obj:IsA("ParticleEmitter") or obj:IsA("PointLight")
+                        or obj:IsA("SpotLight") or obj:IsA("Beam") or obj:IsA("Fire") then
+                            obj:Destroy()
+                        end
+                    end
+                    BtnStates[i] = false
+                    Tween(d.pill, {BackgroundColor3 = CONFIG.Colors.AccentSoft})
+                    Tween(d.pillDot, {Position = UDim2.new(0, 3, 0.5, -6)})
+                    d.lbl.TextColor3 = CONFIG.Colors.TextSoft
+                    d.accent.BackgroundColor3 = CONFIG.Colors.AccentSoft
+                end
+            end
+        end)
+    end
+end
+
+-- // [8] FPS //
+local function setupFPS()
+    RunService.RenderStepped:Connect(function()
+        local now = tick()
+        if now - LastFPS >= CONFIG.FPSInterval then
+            local fps = math.floor(1 / RunService.Heartbeat:Wait())
+            if WatermarkLabel then
+                WatermarkLabel.Text = "✦ AZURE  |  " .. LocalPlayer.Name .. "  |  FPS: " .. fps
+            end
+            LastFPS = now
+        end
+    end)
+end
+
+-- // [9] INIT //
+buildWatermark()
+buildGUI()
+setupButtons()
+setupFPS()
+print("[AZURE BOOSTER] Loaded successfully!")
